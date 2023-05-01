@@ -16,6 +16,7 @@ typedef struct{
     unsigned char target_mac[ETH_ALEN];
     unsigned char impersonate_mac[ETH_ALEN];
     unsigned char random_mac[ETH_ALEN];
+    unsigned char original_mac[ETH_ALEN];
     char *interface;
 } __attribute__((packed)) AttackSettings;
 
@@ -40,6 +41,7 @@ typedef struct {
 typedef struct {
     char *interface;
     Packet p[2];
+    char *filter;
 } threadArgs;
 
 
@@ -54,7 +56,8 @@ int sendArpPacket(pcap_t *handle, Packet *packet);
 int
 receiveArpPacket(pcap_t *handle, uint8_t mac[ETH_ALEN]);
 void* threadSendArpPacket(void* tArgs);
-
+void packet_handler(u_char *param, const struct pcap_pkthdr *header, const
+u_char *pkt_data);
 
 
 #endif //C_ARP_SPOOF_H
