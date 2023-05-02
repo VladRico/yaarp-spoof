@@ -4,17 +4,18 @@ ARP cache poisoning attack implemented in C for fun (and profit ?), using `libpc
 
 ## Usage
 
-Need to run as root because it uses low-level networking capabilities.
-`net.ipv4.ip_forward` must be set to '1', unless you just want to `DOS` the network between 2 given hosts.
-`sudo sysctl -w net.ipv4.ip_forward=1`
 
 ```
 sudo ./arp-spoof <target_ip> <impersonate_ip> <interface_name>
 
 Example:
 sudo ./arp-spoof 192.168.1.13 192.168.1.1 eth0
-
 ```
+Need to run as root because it uses low-level networking capabilities.  
+
+`net.ipv4.ip_forward` must be set to `1`, unless you just want to `DOS` the network between 2 given hosts.  
+`sudo sysctl -w net.ipv4.ip_forward=1`
+
 The order of `<target_ip>` and `<impersonate_ip>` doesn't matter.
 
 ## Troubleshoot
@@ -25,11 +26,9 @@ On kali, I had to create a symbolic link to `libcap.so.1`:
 ```
 # Adapt it to the version of your libpcap.so.1.xxx
 ln -s /usr/lib/x86_64-linux-gnu/libpcap.so.1.10.3 /usr/lib/x86_64-linux-gnu/libpcap.so.1
-
-/usr/lib/x86_64-linux-gnu/libpcap.so.1 -> /usr/lib/x86_64-linux-gnu/libpcap.so.1.10.3
 ```
 ### Running
-It currently tries to resolve {target_ip,impersonate_ip} mac address by sending broadcast request.
+It currently tries to resolve {`target_ip`, `impersonate_ip`} mac address by sending broadcast ARP requests.
 Make sure the mac addresses resolved are correct.
 
 ## Compilation
@@ -45,6 +44,9 @@ Require libpcap0.8 or newer, then just compile it
 
 
 ## TODO
+<details>
+  <summary>Show todo list</summary>
+  
 - [ ] cli args
     - [ ] set number of retries for mac addr resolver
     - [ ] NRV mode (without nanosleep + nb thread ?)
@@ -56,6 +58,7 @@ Require libpcap0.8 or newer, then just compile it
 - [ ] Review dynamic memory allocation
 - [ ] Running / Tested on *BSD
 - [ ] Static compilation
+</details>
 
 # Author
 Vlad Rico ([@RicoVlad](https://twitter.com/RicoVlad))
