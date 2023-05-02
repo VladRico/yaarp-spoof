@@ -22,13 +22,13 @@
 #include <netinet/udp.h>
 #include "yaarp-spoof.h"
 
-#define SIZE_ETHERNET 14 // Ethernet header is always 14
-
+#define IP_HL(ip)               (((ip)->ip_hl) & 0x0f)
+#define IP_V(ip)                (((ip)->ip_hl) >> 4)
 
 volatile sig_atomic_t sigint_received = 0;
 pthread_t t1,t2;
 
-int
+void
 generateRandomMacAddr(unsigned char* mac_addr)
 {
     // Not true RNG but ... who cares ?
@@ -44,7 +44,6 @@ generateRandomMacAddr(unsigned char* mac_addr)
     for (int i = 0; i < ETH_ALEN; ++i) {
         printf("%02x%s", mac_addr[i], (i == ETH_ALEN - 1) ? "\n" : ":"); // Print the MAC address in the usual format
     }
-    return 0;
 }
 
 int
@@ -307,6 +306,35 @@ parsePacket(const u_char *pkt_data)
 }
 
 void
+printPacketHexDump(const struct pcap_pkthdr *header, const u_char *pkt_data)
+{
+    printf("\n\n");
+    printf("Packet hex dump:\n");
+    for (int i = 0; i < header->caplen; i++) {
+        printf("%02x ", pkt_data[i]);
+        if ((i + 1) % 16 == 0) {
+            printf("\n");
+        }
+        else if ((i + 1) % 8 == 0) {
+            printf(" ");
+        }
+    }
+}
+
+void
+printPacketASCII(const struct pcap_pkthdr *header, const u_char *pkt_data)
+{
+    printf("\n\n");
+    printf("Packet ASCII dump:\n");
+    for (int i = 0; i < header->caplen; i++) {
+        printf("%c%s%s",
+               isprint(pkt_data[i]) ? pkt_data[i] : '.',
+               ((i + 1) % 16 == 0 ) ? " " : "",
+               ((i + 1) % 32 == 0 ) ? "\n" : "");
+    }
+}
+
+void
 packet_handler(u_char *param, const struct pcap_pkthdr *header, const
 u_char *pkt_data)
 {
@@ -316,70 +344,57 @@ u_char *pkt_data)
     printf("Packet total length: %d\n", header->len);
     printf("\n");
 
-    // Create a copy of *pkt_data because it may change during processing
-    /*u_char *copy_pkt = calloc(1,header->len);
-    memcpy(copy_pkt,pkt_data,header->len);
-    parsePacket(copy_pkt);*/
-
     struct ether_header *eth_header;
     struct ip *ip_header;
     struct tcphdr *tcp_header;
     struct udphdr *udp_header;
 
-    // parse ethernet header
-    eth_header = (struct ether_header*) pkt_data;
+    int size_ip;
+    int size_tcp;
+    int size_payload;
 
-    // check if it's an IP packet
-    if (ntohs(eth_header->ether_type) == ETHERTYPE_IP) {
-        // parse IP header
-        ip_header = (struct ip*) (pkt_data + sizeof(struct ether_header));
 
-        // check protocol
-        // TODO Error: ip_header->ip_src == header->ip_dst
-        // Same for port number
+    eth_header = (struct ether_header*) (pkt_data);
 
-        switch (ip_header->ip_p) {
-            case IPPROTO_TCP:
-                // parse TCP header
-                tcp_header = (struct tcphdr*) (pkt_data + sizeof(struct
-                        ether_header) + sizeof(struct ip));
-                printf("Protocol: TCP \n| Source IP: %s:%d  | Target IP: %s:%d \n",
-                       inet_ntoa(ip_header->ip_src), ntohs(tcp_header->th_sport),
-                       inet_ntoa(ip_header->ip_dst), ntohs(tcp_header->th_dport));
-                break;
-            case IPPROTO_UDP:
-                // parse UDP header
-                udp_header = (struct udphdr*) (pkt_data + sizeof(struct ether_header) + sizeof(struct ip));
-                printf("Protocol: UDP\n| Source IP: %s:%d  | Target IP: %s:%d \n",
-                       inet_ntoa(ip_header->ip_src), ntohs(udp_header->uh_sport),
-                       inet_ntoa(ip_header->ip_dst), ntohs(udp_header->uh_sport));
-                break;
-            default:
-                printf("Protocol: Unknown (%d)\n", ip_header->ip_p);
-                break;
-        }
+    ip_header = (struct ip*) (pkt_data + ETH_HLEN);
+    size_ip = IP_V(ip_header);
+    if (size_ip < 20) {
+        printf("   * Invalid IP header length: %u bytes\n", size_ip);
+        //return;
     }
 
 
-    printf("\n");
-    printf("Packet hex dump:\n");
-    for (i = 0; i < header->caplen; i++) {
-        printf("%02x ", pkt_data[i]);
-        if ((i + 1) % 16 == 0) {
-            printf("\n");
-        }
-        else if ((i + 1) % 8 == 0) {
-            printf(" ");
-        }
+    switch (ip_header->ip_p) {
+        case IPPROTO_TCP:
+            printf("Protocol: TCP\n");
+            // parse TCP header
+            tcp_header = (struct tcphdr*) (pkt_data + sizeof(struct ether_header) + sizeof(struct ip));
+            /* print source and destination IP addresses */
+            printf("From: %s:%d\n", inet_ntoa(ip_header->ip_src),ntohs(tcp_header->th_sport));
+            printf("  To: %s:%d\n", inet_ntoa(ip_header->ip_dst),ntohs(tcp_header->th_dport));
+
+
+            break;
+        case IPPROTO_UDP:
+            printf("Protocol: UDP\n");
+            // parse UDP header
+            udp_header = (struct udphdr*) (pkt_data + sizeof(struct ether_header) + sizeof(struct ip));
+            /* print source and destination IP addresses */
+            printf("From: %s:%d\n", inet_ntoa(ip_header->ip_src),ntohs(udp_header->uh_sport));
+            printf("  To: %s:%d\n", inet_ntoa(ip_header->ip_dst),ntohs(udp_header->uh_dport));
+
+            break;
+        case IPPROTO_ICMP:
+            printf("Protocol: ICMP\n");
+            break;
+        case IPPROTO_IP:
+            printf("Protocol: IP\n");
+            break;
+        default:
+            printf("Protocol: Unknown (%d)\n", ip_header->ip_p);
+            break;
     }
-    printf("\n\n");
-    printf("Packet ASCII dump:\n");
-    for (i = 0; i < header->caplen; i++) {
-        printf("%c%s%s",
-               isprint(pkt_data[i]) ? pkt_data[i] : '.',
-               ((i + 1) % 16 == 0 ) ? " " : "",
-               ((i + 1) % 32 == 0 ) ? "\n" : "");
-    }
+
     printf("\n\n\n");
 
 }

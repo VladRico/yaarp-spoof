@@ -45,7 +45,7 @@ typedef struct {
 } threadArgs;
 
 
-int generateRandomMacAddr(unsigned char* mac_addr);
+void generateRandomMacAddr(unsigned char* mac_addr);
 int changeMacAddr(unsigned char* mac_addr, char* interface);
 int getMacAddr(unsigned char original_mac[ETH_ALEN], const char* interface);
 int resolveMacAddr(char *interface, unsigned char *target_ip, unsigned char *random_mac, unsigned char *resolved_mac);
