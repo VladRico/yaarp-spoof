@@ -1,6 +1,6 @@
 CC=gcc
-CFLAGS= -g -Wall -lpcap
-TARGET=arp-spoof
+CFLAGS= -g -Wall -lpcap -lpthread
+TARGET=yaarp-spoof
 
 all: $(TARGET) 
 

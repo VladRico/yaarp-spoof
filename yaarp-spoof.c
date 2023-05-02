@@ -16,7 +16,14 @@
 #include <ctype.h>
 #include <assert.h>
 #include <errno.h>
-#include "arp-spoof.h"
+#include <netinet/ether.h>
+#include <netinet/ip.h>
+#include <netinet/tcp.h>
+#include <netinet/udp.h>
+#include "yaarp-spoof.h"
+
+#define SIZE_ETHERNET 14 // Ethernet header is always 14
+
 
 volatile sig_atomic_t sigint_received = 0;
 pthread_t t1,t2;
@@ -68,7 +75,8 @@ changeMacAddr(unsigned char* mac_addr, char* interface)
 }
 
 int
-getMacAddr(unsigned char original_mac[ETH_ALEN], const char* interface){
+getMacAddr(unsigned char original_mac[ETH_ALEN], const char* interface)
+{
 
     struct ifreq ifr;
     int sockfd;
@@ -256,13 +264,103 @@ threadSendArpPacket(void* tArgs)
     pthread_exit(NULL);
 }
 
+void*
+parsePacket(const u_char *pkt_data)
+{
+    /*struct ether_header *eth_header;
+    struct ip *ip_header;
+    struct tcphdr *tcp_header;
+    struct udphdr *udp_header;
+
+    // parse ethernet header
+    eth_header = (struct ether_header*) pkt_data;
+
+    // check if it's an IP packet
+    if (ntohs(eth_header->ether_type) == ETHERTYPE_IP) {
+        // parse IP header
+        ip_header = (struct ip*) (pkt_data + sizeof(struct ether_header));
+
+        // check protocol
+        switch (ip_header->ip_p) {
+            case IPPROTO_TCP:
+                // parse TCP header
+                tcp_header = (struct tcphdr*) (pkt_data + sizeof(struct
+                        ether_header) + sizeof(struct ip));
+                printf("Protocol: TCP \n| Source IP: %s:%d  | Target IP: %s:%d \n",
+                       inet_ntoa(ip_header->ip_src), ntohs(tcp_header->th_sport),
+                       inet_ntoa(ip_header->ip_dst), ntohs(tcp_header->th_dport));
+                break;
+            case IPPROTO_UDP:
+                // parse UDP header
+                udp_header = (struct udphdr*) (pkt_data + sizeof(struct ether_header) + sizeof(struct ip));
+                printf("Protocol: UDP\n| Source IP: %s:%d  | Target IP: %s:%d \n",
+                       inet_ntoa(ip_header->ip_src), ntohs(udp_header->uh_sport),
+                       inet_ntoa(ip_header->ip_dst), ntohs(udp_header->uh_sport));
+                break;
+            default:
+                printf("Protocol: Unknown (%d)\n", ip_header->ip_p);
+                break;
+        }
+    }*/
+
+    return NULL;
+}
+
 void
 packet_handler(u_char *param, const struct pcap_pkthdr *header, const
 u_char *pkt_data)
 {
     int i = 0;
+
     printf("Packet capture length: %d\n", header->caplen);
     printf("Packet total length: %d\n", header->len);
+    printf("\n");
+
+    // Create a copy of *pkt_data because it may change during processing
+    /*u_char *copy_pkt = calloc(1,header->len);
+    memcpy(copy_pkt,pkt_data,header->len);
+    parsePacket(copy_pkt);*/
+
+    struct ether_header *eth_header;
+    struct ip *ip_header;
+    struct tcphdr *tcp_header;
+    struct udphdr *udp_header;
+
+    // parse ethernet header
+    eth_header = (struct ether_header*) pkt_data;
+
+    // check if it's an IP packet
+    if (ntohs(eth_header->ether_type) == ETHERTYPE_IP) {
+        // parse IP header
+        ip_header = (struct ip*) (pkt_data + sizeof(struct ether_header));
+
+        // check protocol
+        // TODO Error: ip_header->ip_src == header->ip_dst
+        // Same for port number
+
+        switch (ip_header->ip_p) {
+            case IPPROTO_TCP:
+                // parse TCP header
+                tcp_header = (struct tcphdr*) (pkt_data + sizeof(struct
+                        ether_header) + sizeof(struct ip));
+                printf("Protocol: TCP \n| Source IP: %s:%d  | Target IP: %s:%d \n",
+                       inet_ntoa(ip_header->ip_src), ntohs(tcp_header->th_sport),
+                       inet_ntoa(ip_header->ip_dst), ntohs(tcp_header->th_dport));
+                break;
+            case IPPROTO_UDP:
+                // parse UDP header
+                udp_header = (struct udphdr*) (pkt_data + sizeof(struct ether_header) + sizeof(struct ip));
+                printf("Protocol: UDP\n| Source IP: %s:%d  | Target IP: %s:%d \n",
+                       inet_ntoa(ip_header->ip_src), ntohs(udp_header->uh_sport),
+                       inet_ntoa(ip_header->ip_dst), ntohs(udp_header->uh_sport));
+                break;
+            default:
+                printf("Protocol: Unknown (%d)\n", ip_header->ip_p);
+                break;
+        }
+    }
+
+
     printf("\n");
     printf("Packet hex dump:\n");
     for (i = 0; i < header->caplen; i++) {

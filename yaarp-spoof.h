@@ -46,6 +46,8 @@ typedef struct {
 
 
 int generateRandomMacAddr(unsigned char* mac_addr);
+int changeMacAddr(unsigned char* mac_addr, char* interface);
+int getMacAddr(unsigned char original_mac[ETH_ALEN], const char* interface);
 int resolveMacAddr(char *interface, unsigned char *target_ip, unsigned char *random_mac, unsigned char *resolved_mac);
 char* getIpFromInterface(char* name);
 Packet*
@@ -58,6 +60,6 @@ receiveArpPacket(pcap_t *handle, uint8_t mac[ETH_ALEN]);
 void* threadSendArpPacket(void* tArgs);
 void packet_handler(u_char *param, const struct pcap_pkthdr *header, const
 u_char *pkt_data);
-
+void* threadHandlePacket(void* tArgs);
 
 #endif //C_ARP_SPOOF_H
