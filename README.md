@@ -33,6 +33,11 @@ Need to run as root because it uses low-level networking capabilities.
 
 The order of `<target_ip1>` and `<target_ip2>` doesn't matter.
 
+The filter option follow the tcpdump filter format, see `man pcap-filter` or [here](https://www.tcpdump.org/manpages/pcap-filter.7.html).
+The default filter value is: `not arp and (host <target_ip1> or host <target_ip2>)`.
+
+In this current state (v0.2), I strongly recommend using `-o output.pcap` to perform post-analysis, as the parser is WIP.
+
 ## Troubleshoot
 
 ### Compilation
@@ -43,7 +48,7 @@ On kali, I had to create a symbolic link to `libcap.so.1`:
 ln -s /usr/lib/x86_64-linux-gnu/libpcap.so.1.10.3 /usr/lib/x86_64-linux-gnu/libpcap.so.1
 ```
 ### Running
-It currently tries to resolve {`target_ip`, `impersonate_ip`} mac address by sending broadcast ARP requests.
+It currently tries to resolve {`target_ip1`, `target_ip2`} mac address by sending broadcast ARP requests.
 Make sure the mac addresses resolved are correct.
 
 ## Compilation
@@ -53,7 +58,7 @@ Make sure the mac addresses resolved are correct.
 sudo apt install -y libpcap0.8 libpcap0.8-dev
 make
 
-# Other
+# Other (not tested)
 Require libpcap0.8 or newer, then just compile it
 ```
 
