@@ -6,17 +6,32 @@ ARP cache poisoning attack implemented in C for fun (and profit ?), using `libpc
 
 
 ```
-sudo ./arp-spoof <target_ip> <impersonate_ip> <interface_name>
+sudo ./yaarp-spoof -i <interface> <target_ip1> <target_ip2>
 
 Example:
-sudo ./arp-spoof 192.168.1.13 192.168.1.1 eth0
+sudo ./yaarp-spoof -i eth0 192.168.1.13 192.168.1.1
+sudo ./yaarp-spoof -i eth0 -o /tmp/output.pcap -f /tmp/filter -r 10 -t 50000 192.168.1.13 192.168.1.37
+
+Help:
+Usage: yaarp-spoof [OPTION...] -i <interface> <target_ip1> <target_ip2>
+ARP cache poisoning attack implemented in C for fun (and profit ?), using
+libpcap
+
+  -f, --filter=INFILE        Path to file containing a custom tcpdump filter
+  -i, --interface=INTERFACE  Network interface to use
+  -o, --output=OUTFILE       Save the capture to a file (affected by filter
+                             option)
+  -r, --retry=NUMBER         Number of requests sent when trying to resolve
+                             targets mac addr (Default = 5)
+  -t, --time=DURATION        Time (in ns) between each spoofed ARP requests
+                             (Default = 50000)
 ```
 Need to run as root because it uses low-level networking capabilities.  
 
-`net.ipv4.ip_forward` must be set to `1`, unless you just want to `DOS` the network between 2 given hosts.  
+`net.ipv4.ip_forward` must be set to `1`, unless you just want to `DOS` the network between 2 given hosts.
 `sudo sysctl -w net.ipv4.ip_forward=1`
 
-The order of `<target_ip>` and `<impersonate_ip>` doesn't matter.
+The order of `<target_ip1>` and `<target_ip2>` doesn't matter.
 
 ## Troubleshoot
 
@@ -47,17 +62,25 @@ Require libpcap0.8 or newer, then just compile it
 <details>
   <summary>Show todo list</summary>
   
-- [ ] cli args
-    - [ ] set number of retries for mac addr resolver
-    - [ ] NRV mode (without nanosleep + nb thread ?)
-    - [ ] Custom tcpdump filter
-    - [ ] set mac addr manually in case of resolver don't work ?
-    - [ ] save to file
+- cli args
+    - [x] set number of retries for mac addr resolver
+    - [x] NRV mode (without nanosleep + nb thread ?)
+    - [x] Custom tcpdump filter
+    - [x] save to file
+    - [ ] (?) set mac addr manually in case of resolver don't work
 
-- [ ] Better proper cleanup when SIGINT
-- [ ] Review dynamic memory allocation
-- [ ] Running / Tested on *BSD
-- [ ] Static compilation
+- Packet parser
+    - [ ] Implement protocol recognition
+    - [ ] Print payload only
+    - [ ] Clean output
+    - [ ] (?) Interactive mode
+
+- MISC
+    - [ ] Better proper cleanup when SIGINT
+    - [ ] Review dynamic memory allocation
+    - [ ] Running / Tested on *BSD
+    - [ ] Static compilation
+
 </details>
 
 # Author
