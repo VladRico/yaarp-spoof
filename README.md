@@ -12,7 +12,7 @@ Example:
 sudo ./yaarp-spoof -i eth0 192.168.1.13 192.168.1.1
 sudo ./yaarp-spoof -i eth0 -o /tmp/output.pcap -f /tmp/filter -r 10 -t 50000 192.168.1.13 192.168.1.37
 
-Help:
+
 Usage: yaarp-spoof [OPTION...] -i <interface> <target_ip1> <target_ip2>
 ARP cache poisoning attack implemented in C for fun (and profit ?), using
 libpcap
@@ -33,8 +33,8 @@ Need to run as root because it uses low-level networking capabilities.
 
 The order of `<target_ip1>` and `<target_ip2>` doesn't matter.
 
-The filter option follow the tcpdump filter format, see `man pcap-filter` or [here](https://www.tcpdump.org/manpages/pcap-filter.7.html).
-The default filter value is: `not arp and (host <target_ip1> or host <target_ip2>)`.
+The filter option follow the tcpdump filter format, see `man pcap-filter` or [here](https://www.tcpdump.org/manpages/pcap-filter.7.html).  
+The default filter value is: `not arp and (host <target_ip1> or host <target_ip2>)` to have only intercepted traffic.
 
 In this current state (v0.2), I strongly recommend using `-o output.pcap` to perform post-analysis, as the parser is WIP.
 
