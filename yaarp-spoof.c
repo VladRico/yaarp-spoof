@@ -622,7 +622,7 @@ main(int argc, char *argv[])
     }else{
         tArgs.filter = read_file(settings.filter);
     }
-    printf("\nFilter: %s\n\n\n", tArgs.filter);
+    printf("\nFilter: %s\n", tArgs.filter);
 
     //Spoofing thread
     pthread_create(&t1, NULL,&threadSendArpPacket,&tArgs);
@@ -630,7 +630,7 @@ main(int argc, char *argv[])
     pthread_create(&t2, NULL,&threadHandlePacket,&tArgs);
 
 
-    printf("Spoofing ...\n");
+    printf("\n=== Spoofing ===\n");
     while (sigint_received != 1){
         // 0.5sec
         nanosleep((const struct timespec[]){{0,500000000L}}, NULL);

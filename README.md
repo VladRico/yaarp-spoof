@@ -41,12 +41,14 @@ In this current state (v0.2), I strongly recommend using `-o output.pcap` to per
 ## Troubleshoot
 
 ### Compilation
-On kali, I had to create a symbolic link to `libcap.so.1`:
+On kali compiling with`gcc`, I had to create a symbolic link to `libcap.so.1`:
 
 ```
 # Adapt it to the version of your libpcap.so.1.xxx
 ln -s /usr/lib/x86_64-linux-gnu/libpcap.so.1.10.3 /usr/lib/x86_64-linux-gnu/libpcap.so.1
 ```
+No issue when compiling with `clang`
+
 ### Running
 It currently tries to resolve {`target_ip1`, `target_ip2`} mac address by sending broadcast ARP requests.
 Make sure the mac addresses resolved are correct.
@@ -81,8 +83,8 @@ Require libpcap0.8 or newer, then just compile it
     - [ ] (?) Interactive mode
 
 - MISC
-    - [ ] Better proper cleanup when SIGINT
-    - [ ] Review dynamic memory allocation
+    - [x] Better proper cleanup when SIGINT
+    - [x] Review dynamic memory allocation / valgrind OK
     - [ ] Running / Tested on *BSD
     - [ ] Static compilation
 
