@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS= -g -Wall -lpcap -lpthread -ftrivial-auto-var-init=zero
+CFLAGS= -g -Wall -lpcap -lpthread -ftrivial-auto-var-init=pattern
 TARGET=yaarp-spoof
 
 all: $(TARGET) 

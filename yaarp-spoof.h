@@ -52,7 +52,7 @@ typedef struct {
     char *interface;
     pcap_t *handle_send;
     pcap_t *handle_receive;
-    Packet p[2];
+    Packet *p[2];
     char *filter;
     char *output;
     long int time;

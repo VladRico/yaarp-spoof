@@ -72,7 +72,7 @@ changeMacAddr(unsigned char* mac_addr, char* interface)
 int
 getMacAddr(unsigned char original_mac[ETH_ALEN], const char* interface)
 {
-    struct ifreq ifr;
+    struct ifreq ifr = {0};
     int sockfd;
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     if(sockfd == -1){
@@ -81,6 +81,11 @@ getMacAddr(unsigned char original_mac[ETH_ALEN], const char* interface)
     }
     strncpy(ifr.ifr_name, interface, strlen(interface));
     assert(ioctl(sockfd, SIOCGIFHWADDR, &ifr) != -1);
+    if(ioctl(sockfd,SIOCGIFHWADDR, &ifr) == -1){
+        printf("\nCan't get the mac addr of specified interface %s\n",interface);
+        close(sockfd);
+        exit(EXIT_FAILURE);
+    }
     close(sockfd);
     memcpy(original_mac, ifr.ifr_hwaddr.sa_data, ETH_ALEN);
 
@@ -164,21 +169,24 @@ craftPacket(unsigned char *sender_mac, unsigned char* sender_ip, unsigned char *
     arp_header.ar_pln = 4; // Length of protocol address
     arp_header.ar_op = htons(ARPOP_CODE); // ARP opcode
 
-    // ARP Body
-    ArpBody *arp_body = calloc(1,sizeof(ArpBody));
-    memcpy(arp_body->ar_sha, sender_mac, ETH_ALEN);
-    memcpy(arp_body->ar_tha, target_mac, ETH_ALEN);
+    ArpBody arp_body = {0};
+    memcpy(arp_body.ar_sha, sender_mac, ETH_ALEN);
+    memcpy(arp_body.ar_tha, target_mac, ETH_ALEN);
+    memcpy(arp_body.ar_sip, sender_ip, 4);
+    memcpy(arp_body.ar_tip, target_ip, 4);
 
-    memcpy(arp_body->ar_sip, sender_ip, 4);
-    memcpy(arp_body->ar_tip, target_ip, 4);
-
-    ArpPacket *arp = calloc(1, sizeof(ArpPacket));
-    memcpy(arp,&arp_header,sizeof(struct arphdr));
-    memcpy(&arp->body,arp_body,sizeof(ArpBody));
+    ArpPacket arp = {
+            .header = arp_header,
+            .body = arp_body
+    };
 
     Packet *packet = calloc(1,sizeof(Packet));
+    if(packet == NULL){
+        fprintf(stderr,"Error while allocating arp packet memory");
+        exit(EXIT_FAILURE);
+    }
     memcpy(packet,&ethernet_header,sizeof(struct ether_header));
-    memcpy(&packet->arp,arp,sizeof(ArpPacket));
+    memcpy(&packet->arp,&arp,sizeof(ArpPacket));
 
     return packet;
 }
@@ -238,10 +246,10 @@ threadSendArpPacket(void* tArgs)
     }
 
     while(myArg->running == 1){
-        sendArpPacket(myArg->handle_send,&myArg->p[0]);
+        sendArpPacket(myArg->handle_send,myArg->p[0]);
         // Added nanosleep because too much ARP packet are sended otherwise
         nanosleep((const struct timespec[]){{0, myArg->time}}, NULL);
-        sendArpPacket(myArg->handle_send,&myArg->p[1]);
+        sendArpPacket(myArg->handle_send,myArg->p[1]);
     }
     pcap_close(myArg->handle_send);
     pthread_exit(NULL);
@@ -423,6 +431,7 @@ threadHandlePacket(void* tArgs)
     }
 
     // Called when main loop call pcap_breakloop
+    pcap_freecode(&fp);
     if(dumper != NULL) pcap_dump_close(dumper);
     pcap_close(myArg->handle_receive);
     pthread_exit(NULL);
@@ -432,8 +441,6 @@ void
 sigint_handler(int sig)
 {
     sigint_received = 1;
-    //pthread_kill(t1,SIGINT);
-    //pthread_kill(t2,SIGINT);
 }
 
 static error_t
@@ -471,7 +478,7 @@ read_file(char* filename)
     fp = fopen(filename, "rb");
     if (!fp) {
         fprintf(stderr, "Error opening file %s\n", filename);
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     fseek(fp, 0L, SEEK_END);
@@ -481,15 +488,17 @@ read_file(char* filename)
     buffer = (char*) calloc (1,file_size);
     if (!buffer) {
         fprintf(stderr, "Error allocating memory for buffer\n");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
-    int nbRead = fread(buffer, 1, file_size, fp);
-    if ( nbRead < file_size) {
+    // file_size - 1 is used to remove the \0 from the end of the file.
+    // Otherwise, valgrind said there was a read error of 1 byte
+    int nbRead = fread(buffer, 1, file_size-1, fp);
+    if ( nbRead < file_size -1) {
         fprintf(stderr, "Error reading file %s\n", filename);
-        fprintf(stderr,"Number of bytes read: %d", nbRead);
-        fprintf(stderr,"File size: %ld", file_size);
+        fprintf(stderr,"Number of bytes read: %d\n", nbRead);
+        fprintf(stderr,"File size: %ld\n", file_size);
         free(buffer);
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
     fclose(fp);
@@ -585,27 +594,21 @@ main(int argc, char *argv[])
         printf("%02x%s", settings.impersonate_mac[i], (i == ETH_ALEN - 1) ? "\n" : ":"); // Print the MAC address in the usual format
     }
 
-    // Spoofed packet for target_ip
-    Packet *p2 = craftPacket(settings.random_mac,
-                             settings.impersonate_ip,
-                             settings.target_mac,
-                             settings.target_ip,
-                             ARPOP_REPLY);
-
-    // Spoofed packet for impersonate_ip
-    Packet *p3 = craftPacket(settings.random_mac,
-                             settings.target_ip,
-                             settings.impersonate_mac,
-                             settings.impersonate_ip,
-                             ARPOP_REPLY);
-
     // THREAD TIME
     threadArgs tArgs;
     tArgs.interface = settings.interface;
     tArgs.handle_send = NULL;
     tArgs.handle_receive = NULL;
-    tArgs.p[0] = *p2;
-    tArgs.p[1] = *p3;
+    tArgs.p[0] = craftPacket(settings.random_mac,
+                             settings.impersonate_ip,
+                             settings.target_mac,
+                             settings.target_ip,
+                             ARPOP_REPLY);
+    tArgs.p[1] = craftPacket(settings.random_mac,
+                             settings.target_ip,
+                             settings.impersonate_mac,
+                             settings.impersonate_ip,
+                             ARPOP_REPLY);
     tArgs.time = settings.time;
     tArgs.filter = settings.filter;
     tArgs.output = settings.output;
@@ -629,10 +632,11 @@ main(int argc, char *argv[])
 
     printf("Spoofing ...\n");
     while (sigint_received != 1){
+        // 0.5sec
         nanosleep((const struct timespec[]){{0,500000000L}}, NULL);
     }
 
-    printf("Cleaning ...\n");
+    printf("\n=== Cleaning ===\n");
 
     tArgs.running = 0;
     pcap_breakloop(tArgs.handle_receive);
@@ -641,8 +645,8 @@ main(int argc, char *argv[])
 
     changeMacAddr(settings.original_mac,settings.interface);
 
-    free(p2);
-    free(p3);
+    free(tArgs.p[0]);
+    free(tArgs.p[1]);
     free(tArgs.filter);
 
     return EXIT_SUCCESS;
