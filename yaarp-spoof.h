@@ -1,14 +1,14 @@
 //
-// Created by vlad on 4/30/23.
+// Created by @RicoVlad on 4/30/23.
 //
-
-
-#ifndef C_ARP_SPOOF_H
-#define C_ARP_SPOOF_H
 
 #include <net/if_arp.h>
 #include <net/ethernet.h>
 #include <pcap.h>
+
+#ifndef C_ARP_SPOOF_H
+#define C_ARP_SPOOF_H
+
 
 typedef struct{
     unsigned char target_ip[4];
@@ -23,7 +23,7 @@ typedef struct{
     char *output;
     int retry;
     long int time;
-} __attribute__((packed)) AttackSettings;
+} __attribute__((aligned)) AttackSettings;
 
 
 /*
@@ -50,17 +50,20 @@ typedef struct {
 
 typedef struct {
     char *interface;
+    pcap_t *handle_send;
+    pcap_t *handle_receive;
     Packet p[2];
     char *filter;
     char *output;
     long int time;
+    int running;
 } threadArgs;
 
 const char *argp_program_version = "yaarp-spoof 0.2";
 const char *argp_program_bug_address = "https://github.com/VladRico/yaarp-spoof/issues";
-static char doc[] = "ARP cache poisoning attack implemented in C for fun (and profit ?), using libpcap";
-static char args_doc[] = "-i <interface> <target_ip1> <target_ip2>";
-static struct argp_option options[] = {
+static const char doc[] = "ARP cache poisoning attack implemented in C for fun (and profit ?), using libpcap";
+static const char args_doc[] = "-i <interface> <target_ip1> <target_ip2>";
+static const struct argp_option options[] = {
         { "interface", 'i', "INTERFACE", 0, "Network interface to use"},
         { "retry", 'r', "NUMBER", 0, "Number of requests sent when trying to resolve targets mac addr (Default = 5)"},
         { "filter", 'f', "INFILE", 0, "Path to file containing a custom tcpdump filter"},
@@ -71,18 +74,16 @@ static struct argp_option options[] = {
 static error_t parse_opt(int key, char *arg, struct argp_state *state);
 static struct argp argp = { options, parse_opt, args_doc, doc, 0, 0, 0 };
 
+void sigint_handler(int sig);
 void generateRandomMacAddr(unsigned char* mac_addr);
 int changeMacAddr(unsigned char* mac_addr, char* interface);
 int getMacAddr(unsigned char original_mac[ETH_ALEN], const char* interface);
 int resolveMacAddr(char *interface, unsigned char *target_ip, unsigned char *random_mac, unsigned char *resolved_mac, int nbRetries);
 char* getIpFromInterface(char* name);
-Packet*
-craftPacket(unsigned char *sender_mac, unsigned char* sender_ip, unsigned char *target_mac, unsigned char *target_ip, int ARPOP_CODE);
-pcap_t*
-prepareConnection(char* interface);
+Packet* craftPacket(unsigned char *sender_mac, unsigned char* sender_ip, unsigned char *target_mac, unsigned char *target_ip, int ARPOP_CODE);
+pcap_t* prepareConnection(char* interface);
 int sendArpPacket(pcap_t *handle, Packet *packet);
-int
-receiveArpPacket(pcap_t *handle, uint8_t mac[ETH_ALEN]);
+int receiveArpPacket(pcap_t *handle, uint8_t mac[ETH_ALEN]);
 void* threadSendArpPacket(void* tArgs);
 void packet_handler(u_char *param, const struct pcap_pkthdr *header, const
 u_char *pkt_data);
