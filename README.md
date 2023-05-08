@@ -28,7 +28,7 @@ libpcap
 ```
 Need to run as root because it uses low-level networking capabilities.  
 
-`net.ipv4.ip_forward` must be set to `1`, unless you just want to `DOS` the network between 2 given hosts.
+`net.ipv4.ip_forward` must be set to `1`, unless you just want to `DOS` the network between 2 given hosts.</br>
 `sudo sysctl -w net.ipv4.ip_forward=1`
 
 The order of `<target_ip1>` and `<target_ip2>` doesn't matter.
@@ -36,7 +36,7 @@ The order of `<target_ip1>` and `<target_ip2>` doesn't matter.
 The filter option follow the tcpdump filter format, see `man pcap-filter` or [here](https://www.tcpdump.org/manpages/pcap-filter.7.html).  
 The default filter value is: `not arp and (host <target_ip1> or host <target_ip2>)` to have only intercepted traffic.
 
-In this current state (v0.2), I strongly recommend using `-o output.pcap` to perform post-analysis, as the parser is WIP.
+In this current state (v0.3), I strongly recommend using `-o output.pcap` to perform post-analysis, as the parser is WIP.
 
 ## Troubleshoot
 

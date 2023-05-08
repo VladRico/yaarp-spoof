@@ -59,7 +59,7 @@ typedef struct {
     int running;
 } threadArgs;
 
-const char *argp_program_version = "yaarp-spoof 0.2";
+const char *argp_program_version = "yaarp-spoof 0.3";
 const char *argp_program_bug_address = "https://github.com/VladRico/yaarp-spoof/issues";
 static const char doc[] = "ARP cache poisoning attack implemented in C for fun (and profit ?), using libpcap";
 static const char args_doc[] = "-i <interface> <target_ip1> <target_ip2>";
