@@ -94,7 +94,7 @@ Require libpcap0.8 or newer, then just compile it
 Vlad Rico ([@RicoVlad](https://twitter.com/RicoVlad))
 
 # Reference
-- [Wikipedia](https://en.wikipedia.org/wiki/ARP_spoofing)
+- [ARP Spoofing](https://en.wikipedia.org/wiki/ARP_spoofing)
 - [RFC 826](https://datatracker.ietf.org/doc/html/rfc826)
 
 ## Disclaimer
